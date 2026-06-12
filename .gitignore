@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Sensitive data — never commit
+data/
+logs/
+.env
+.env.local
+.env.production
+*.db
+*.sqlite
+
+# macOS LaunchAgent (contains paths and potentially API keys)
+*.plist
+
+# OS generated files
+.DS_Store
+Thumbs.db

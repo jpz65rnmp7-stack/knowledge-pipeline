@@ -1,0 +1,34 @@
+你是一个知识付费内容的分类专家。根据以下标题和内容摘要，将内容归类到最合适的分类和子分类。
+
+## 可用分类
+
+{category_tree}
+
+## 输入内容
+
+标题：{title}
+来源平台：{platform}
+内容摘要：{content_summary}
+
+## 输出要求
+
+只返回 JSON，不要有其他内容：
+
+```json
+{{
+  "major_category_id": "01-商业财经",
+  "sub_category": "搞钱心法",
+  "tags": ["商业认知", "赚钱", "思维"],
+  "confidence": 0.92,
+  "is_monetizable": true,
+  "reasoning": "内容讨论了赚钱心法和商业思维，有明确的变现价值"
+}}
+```
+
+## 重要规则
+1. major_category_id 必须是以下之一: 01-商业财经, 02-商业代码, 03-职业技能, 04-生活兴趣, 05-教育学习, 06-健康养生, 07-高潜赛道, 08-小众高客单
+2. sub_category 必须从对应大类下的子分类中选择
+3. tags 提取 3-5 个最核心的关键词
+4. confidence 0-1 之间的数字，表示你对分类的确信度
+5. is_monetizable 判断这篇内容是否有商业变现价值（能帮人赚钱/省钱/成长/解决问题的才有价值）
+6. 如果 confidence < 0.5，标记 is_monetizable 为 false

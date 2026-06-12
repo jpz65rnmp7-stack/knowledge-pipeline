@@ -1,0 +1,112 @@
+# 知识付费全赛道聚合 · 平台配置
+
+platforms:
+  bilibili:
+    enabled: true
+    max_results_per_keyword: 8
+    search_keywords:
+      # 01-商业财经
+      - "知识付费 赚钱"
+      - "搞钱 副业"
+      - "商业思维 创业"
+      - "投资理财 入门"
+      - "自媒体 运营 变现"
+      - "私域流量 IP"
+      # 02-商业代码（个人成长）
+      - "认知升级 思维"
+      - "情绪管理 心理"
+      - "自律 习惯养成"
+      - "沟通 情商"
+      - "国学 智慧"
+      # 03-职业技能
+      - "职场 晋升 技能"
+      - "AI 工具 效率"
+      - "编程 Python 入门"
+      # 04-生活兴趣
+      - "情感 亲密关系"
+      - "家庭教育 亲子"
+      - "美妆 穿搭 生活"
+      # 05-教育学习
+      - "学习方法 考试"
+      - "英语 学习 方法"
+      # 06-健康养生
+      - "中医 养生 健康"
+      - "运动 健身 减脂"
+      - "睡眠 改善 冥想"
+      # 07-高潜赛道
+      - "AI 赚钱 应用"
+      - "短视频 直播 带货"
+      - "跨境电商 TikTok"
+      # 08-小众高客单
+      - "情感咨询 挽回"
+      - "职业规划 跳槽"
+
+  zhihu:
+    enabled: true
+    max_results_per_keyword: 8
+    search_keywords:
+      # 01-商业财经
+      - "知识付费 赚钱"
+      - "副业 经验 分享"
+      - "商业思维 认知"
+      - "搞钱 心得"
+      # 02-商业代码
+      - "个人成长 干货"
+      - "认知升级 思维"
+      - "心理学 情绪"
+      - "国学 智慧 现代"
+      # 03-职业技能
+      - "职场 进阶 技能"
+      - "AI 工具 效率"
+      # 04-生活兴趣
+      - "亲密关系 情感"
+      - "家庭教育 亲子"
+      # 05-教育学习
+      - "学习方法 高效"
+      # 06-健康养生
+      - "中医 养生 科普"
+      - "运动 健身 方法"
+      # 07-高潜赛道
+      - "AI 赚钱 副业"
+      - "短视频 运营 变现"
+      # 08-小众高客单
+      - "职业规划 咨询"
+
+  wechat_sogou:
+    enabled: true
+    max_results_per_keyword: 5
+    search_keywords:
+      # 01-商业财经
+      - "知识付费 赚钱"
+      - "商业认知 搞钱"
+      - "个人IP 变现"
+      # 02-商业代码
+      - "认知升级 心理"
+      - "自律 习惯 成长"
+      # 03-职业技能
+      - "职场 技能 AI"
+      # 04-生活兴趣
+      - "情感 关系 家庭"
+      # 05-教育学习
+      - "学习方法 考试"
+      # 06-健康养生
+      - "中医 养生 心理"
+      # 07-高潜赛道
+      - "AI 赚钱 短视频"
+      # 08-小众高客单
+      - "命理 星座 情感"
+
+  toutiao:
+    enabled: false
+    note: "Phase 2 — anti-scrape measures need Scrapling"
+
+  aggregators:
+    enabled: false
+    note: "Phase 2"
+
+# Daily limits
+limits:
+  max_total_articles: 30          # Raised for wider coverage
+  max_quality_output: 15          # Max high-quality outputs per day
+  min_content_length: 200         # Min chars for valid content
+  max_content_length: 10000       # Max chars
