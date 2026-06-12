@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Optional
 
-from .utils import LLMClient, Config
+from .utils import LLMClient, Config, LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -32,35 +32,24 @@ class QualityFilter:
         self.auto_accept = self.thresholds.get("auto_accept", 8.0)
 
     def heuristic_check(self, content: str, title: str) -> tuple[bool, str]:
-        """
-        Fast heuristic checks. Returns (passes, reason).
-        Rejects obvious garbage before expensive LLM calls.
-        """
-        # Length check
+        """Fast heuristic checks. Returns (passes, reason)."""
         if len(content) < 150:
             return False, "内容过短 (<150字)"
 
         if len(content) > 12000:
             return False, "内容过长，疑似聚合"
 
-        # Spam check
-        spam_count = 0
-        for pattern in SPAM_PATTERNS:
-            if re.search(pattern, content):
-                spam_count += 1
+        spam_count = sum(1 for p in SPAM_PATTERNS if re.search(p, content))
         if spam_count >= 3:
             return False, "疑似广告/垃圾内容"
 
-        # Title quality
         if len(title) < 3:
             return False, "标题过短"
 
-        # Gibberish check — high ratio of non-Chinese non-punctuation chars
         chinese_chars = len(re.findall(r"[一-鿿]", content))
         if chinese_chars < 100:
             return False, "中文字符不足"
 
-        # Too many emoji = likely low-quality social media repost
         emoji_count = len(re.findall(r"[\U0001F300-\U0001FAFF]", content))
         if emoji_count > 20:
             return False, "表情符号过多"
@@ -68,10 +57,11 @@ class QualityFilter:
         return True, ""
 
     def llm_score(self, title: str, content: str, platform: str, category: str) -> dict:
-        """Use LLM to score content quality across 5 dimensions."""
-        # Truncate content for the LLM call
-        content_truncated = content[:1500] if len(content) > 1500 else content
+        """Use LLM to score content quality across 5 dimensions.
 
+        Returns a dict. Falls back to a safe default on error (logged, not fatal).
+        """
+        content_truncated = content[:1500] if len(content) > 1500 else content
         user_msg = (
             f"标题：{title}\n"
             f"来源：{platform}\n"
@@ -80,27 +70,31 @@ class QualityFilter:
         )
 
         try:
-            result = self.llm.call_json(self.quality_prompt, user_msg, max_tokens=1024)
-            if "error" in result:
-                logger.warning(f"Quality scoring failed: {result.get('error')}")
-                return {"passed": True, "total_score": 5.0, "reasoning": "LLM评分失败，默认放行"}
-            return result
+            return self.llm.call_json(self.quality_prompt, user_msg, max_tokens=1024)
+        except LLMError as e:
+            logger.warning(f"Quality LLM scoring failed for '{title[:30]}...': {e}")
+            # Fail-safe: reject on LLM error so bad content doesn't silently pass
+            return {
+                "passed": False,
+                "total_score": 0,
+                "reasoning": f"评分失败: {e}",
+            }
         except Exception as e:
-            logger.error(f"Quality scoring error: {e}")
-            return {"passed": True, "total_score": 5.0, "reasoning": f"评分错误: {e}"}
+            logger.error(f"Quality unexpected error: {e}")
+            return {
+                "passed": False,
+                "total_score": 0,
+                "reasoning": f"评分异常: {e}",
+            }
 
     def should_process(self, title: str, content: str, platform: str, category: str) -> tuple[bool, dict]:
-        """
-        Full quality check. Returns (passes, score_detail).
-        """
-        # Stage 1: Heuristic
+        """Full quality check. Returns (passes, score_detail)."""
         passes, reason = self.heuristic_check(content, title)
         if not passes:
             return False, {"passed": False, "total_score": 0, "reasoning": reason}
 
-        # Stage 2: LLM scoring
         score = self.llm_score(title, content, platform, category)
-        total = score.get("total_score", 5.0)
+        total = score.get("total_score", 0)
 
         if total >= self.min_score:
             return True, score

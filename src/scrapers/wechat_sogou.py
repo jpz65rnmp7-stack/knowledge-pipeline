@@ -1,14 +1,15 @@
-"""WeChat Official Accounts scraper via Sogou WeChat search."""
+"""WeChat Official Accounts scraper via Sogou WeChat search.
 
-import asyncio
+Overrides search_keywords() for sequential search — Sogou is very rate-sensitive.
+"""
+
 import logging
 from typing import Optional
 
-import httpx
 from bs4 import BeautifulSoup
 
 from .base import BaseScraper, ScrapedArticle
-from .utils import random_ua, rate_limit_async
+from .utils import random_ua
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class WechatSogouScraper(BaseScraper):
 
     def __init__(self, platform_config: dict):
         super().__init__(platform_config)
-        self._client = None
+        self._concurrency = 1  # Force single — Sogou anti-bot is aggressive
 
     @property
     def platform_name(self) -> str:
@@ -35,18 +36,13 @@ class WechatSogouScraper(BaseScraper):
         }
 
     async def search_keywords(self, keywords: list[str]) -> list[ScrapedArticle]:
-        """Search 搜狗微信 for all keywords — sequential to avoid anti-bot triggers."""
+        """Sequential search — Sogou is too rate-sensitive for concurrency."""
         articles = []
         seen_urls = set()
 
-        async with httpx.AsyncClient(
-            headers=self._get_headers(),
-            timeout=20,
-            follow_redirects=True,
-        ) as client:
-            self._client = client
+        try:
+            client = await self._get_client()
 
-            # Sogou is very rate-sensitive — search sequentially
             for kw in keywords:
                 try:
                     results = await self._search_single(kw)
@@ -55,23 +51,29 @@ class WechatSogouScraper(BaseScraper):
                         if norm_url not in seen_urls:
                             seen_urls.add(norm_url)
                             articles.append(article)
-                    await rate_limit_async(2.0, 3.5)
+                    await self._rate_limit()
                 except Exception as e:
                     logger.error(f"[公众号] Search error for '{kw}': {e}")
                     continue
+        finally:
+            await self._close_client()
 
-        logger.info(f"[公众号] Total unique articles: {len(articles)} from {len(keywords)} keywords")
+        logger.info(
+            f"[公众号] {len(articles)} unique articles from {len(keywords)} keywords"
+        )
         return articles
+
+    async def _rate_limit(self):
+        import asyncio
+        import random
+        await asyncio.sleep(random.uniform(2.0, 3.5))
 
     async def _search_single(self, keyword: str) -> list[ScrapedArticle]:
         """Search Sogou WeChat for one keyword."""
-        params = {
-            "type": 2,
-            "query": keyword,
-            "ie": "utf8",
-        }
+        params = {"type": 2, "query": keyword, "ie": "utf8"}
+        client = await self._get_client()
         try:
-            resp = await self._client.get(self.SOGOU_WEIXIN, params=params)
+            resp = await client.get(self.SOGOU_WEIXIN, params=params)
             resp.raise_for_status()
         except Exception as e:
             logger.warning(f"[公众号] Request failed for '{keyword}': {e}")
@@ -95,7 +97,6 @@ class WechatSogouScraper(BaseScraper):
                     articles.append(article)
             except Exception as e:
                 logger.debug(f"[公众号] Parse item error: {e}")
-                continue
 
         return articles
 
@@ -106,22 +107,16 @@ class WechatSogouScraper(BaseScraper):
             return None
 
         title = title_el.get_text(strip=True)
-        raw_url = title_el.get("href", "")
-
-        url = raw_url  # Keep as-is; Sogou redirects work fine
+        url = title_el.get("href", "")
 
         if not title or len(title) < 5:
             return None
 
         desc_el = item.select_one(".txt-info, .s-p, p[class*='info'], .summary")
-        description = ""
-        if desc_el:
-            description = desc_el.get_text(strip=True)
+        description = desc_el.get_text(strip=True) if desc_el else ""
 
         author_el = item.select_one(".account, .s2, [class*='account'], [class*='name']")
-        author = ""
-        if author_el:
-            author = author_el.get_text(strip=True)
+        author = author_el.get_text(strip=True) if author_el else ""
 
         content = f"{title}\n\n{description}"
         if author:

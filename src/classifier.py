@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from .utils import LLMClient, Config
+from .utils import LLMClient, Config, LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -11,16 +11,16 @@ logger = logging.getLogger(__name__)
 class ContentClassifier:
     """Classify articles into 8 major categories + sub-categories using LLM."""
 
+    # Reject classification below this confidence threshold
+    MIN_CONFIDENCE = 0.4
+
     def __init__(self, llm: LLMClient, config: Config):
         self.llm = llm
         self.config = config
         self.classify_prompt = config.load_prompt("classify")
-
-        # Build category tree for the prompt
         self._category_tree = self._build_category_tree()
 
     def _build_category_tree(self) -> str:
-        """Build a text representation of all categories for the LLM prompt."""
         parts = []
         for cat in self.config.categories["major_categories"]:
             cat_id = cat["id"]
@@ -33,28 +33,30 @@ class ContentClassifier:
         return "\n".join(parts)
 
     def classify(self, title: str, content: str, platform: str) -> Optional[dict]:
-        """
-        Classify an article. Returns dict with major_category_id, sub_category, tags, etc.
-        Returns None on failure.
-        """
-        # Truncate content for classification (first 800 chars is enough)
+        """Classify an article. Returns dict or None on failure (logged, not fatal)."""
         content_summary = content[:800] if len(content) > 800 else content
-
-        # Inject category tree into the prompt template
         prompt = self.classify_prompt.replace("{category_tree}", self._category_tree)
-
         user_msg = f"标题：{title}\n来源平台：{platform}\n内容摘要：{content_summary}"
 
         try:
             result = self.llm.call_json(prompt, user_msg, max_tokens=1024)
-            if "error" in result:
-                logger.warning(f"Classification failed: {result.get('error')}")
-                return None
-            return result
+        except LLMError as e:
+            logger.warning(f"Classification LLM error for '{title[:30]}...': {e}")
+            return None
         except Exception as e:
-            logger.error(f"Classification error for '{title[:30]}...': {e}")
+            logger.error(f"Classification unexpected error for '{title[:30]}...': {e}")
             return None
 
+        if not isinstance(result, dict):
+            logger.warning(f"Classification returned non-dict: {type(result)}")
+            return None
+
+        confidence = result.get("confidence", 0)
+        if confidence < self.MIN_CONFIDENCE:
+            logger.debug(f"Low confidence ({confidence:.2f}) for '{title[:30]}...'")
+            return None
+
+        return result
+
     def get_major_categories(self) -> list[str]:
-        """Return list of major category IDs."""
         return [c["id"] for c in self.config.categories["major_categories"]]
